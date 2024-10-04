@@ -15,7 +15,26 @@ from src.quantum_walks import PathFinder, PathFinderLinear, PathFinderSHP, PathF
 from src.validation import execute_circuit, get_state_vector, get_fidelity
 from src.walks_gates_conversion import PathConverter
 
-from qclib.state_preparation.merge import MergeInitialize
+from qclib.state_preparation import *
+
+METHODS = {  # These are all the state preparation methods in QCLib's init.py
+    "topdown": TopDownInitialize,  # Works
+    "dcsp": DcspInitialize,  # Works with Fidelity Check removed (Uses Ancillas)
+    "bdsp": BdspInitialize,  # Works with Fidelity Check removed (Uses Ancillas)
+    "lowrank": LowRankInitialize,  # Works
+    # "fnpoints": FnPointsInitialize,  # "Invalid param type <class 'numpy.complex128'> for gate cu."
+    "baa": BaaLowRankInitialize,  # Works
+    "merge": MergeInitialize,  # Works
+    # "cvqram": CvqramInitialize,  # 'QuantumCircuit' object has no attribute 'cu3'
+    "cvoqram": CvoqramInitialize,  # Works with Fidelity Check removed (Uses Ancillas)
+    "pivot": PivotInitialize,  # Works
+    "isometry": IsometryInitialize,  # Works
+    "svd": SVDInitialize,  # Works
+    "ucg": UCGInitialize,  # Works
+    # "mixed":MixedInitialize  # The exception was just the integer 0...
+}
+REQUIRES_SV = ["topdown", "dcsp", "bdsp", "lowrank", "baa", "isometry", "svd", "ucg"]
+USES_ANCILLAS = ["dcsp", "bdsp", "cvoqram"]
 
 
 def prepare_state(target_state: dict[str, complex], method: str, path_finder: PathFinder, basis_gates: list[str], optimization_level: int, check_fidelity: bool,
@@ -28,15 +47,26 @@ def prepare_state(target_state: dict[str, complex], method: str, path_finder: Pa
     elif method == "walks":
         path = path_finder.get_path(target_state)
         circuit = PathConverter.convert_path_to_circuit(path, reduce_controls, remove_leading_cx, add_barriers)
-    elif method=="gleinig":
-        merger=MergeInitialize(target_state)
-        circuit=merger._define_initialize()
+    elif method in METHODS:
+        num_qubits = len(next(iter(target_state.keys())))
+        initializer = METHODS.get(method)
+        if method in REQUIRES_SV:
+            state_vec = [0]*2**num_qubits
+            for k, v in target_state.items():
+                state_vec[int(k[::-1], 2)] = v  # Fidelity check fails if the bitstring is not reversed
+            circuit = initializer(state_vec).definition
+        else:
+            if method == "merge":  # For some reason merge does not need reversed bit strings, but pivot does
+                circuit = initializer(target_state).definition
+            else:
+                reversed_target_state = {k[::-1]: v for k, v in target_state.items()}
+                circuit = initializer(reversed_target_state).definition
     else:
         raise Exception("Unknown method")
     circuit_transpiled = transpile(circuit, basis_gates=basis_gates, optimization_level=optimization_level)
     cx_count = circuit_transpiled.count_ops().get("cx", 0)
 
-    if check_fidelity:
+    if check_fidelity and method not in USES_ANCILLAS:  # Fidelity can't be checked against a larger statevector
         output_state_vector = execute_circuit(circuit_transpiled)
         target_state_vector = get_state_vector(target_state)
         fidelity = get_fidelity(output_state_vector, target_state_vector)
@@ -80,20 +110,20 @@ def merge_state_files():
         pickle.dump(merged, f)
 
 
-def run_prepare_state():
+def run_prepare_state(method):
     # method = "qiskit"
-    method = "gleinig"
+    # method = "gleinig"
     # path_finder = PathFinderRandom()
     # path_finder = PathFinderLinear()
     # path_finder = PathFinderGrayCode()
     path_finder = PathFinderSHP()
     # path_finder = PathFinderMST()
     # num_qubits_all = np.array([5])
-    num_qubits_all = np.array(list(range(11, 12)))
+    num_qubits_all = np.array(list(range(3, 4)))
     num_amplitudes_all = 2**(num_qubits_all-1) # possible values are [num_qubits_all, num_qubits_all**2, 2**(num_qubits_all-1)]
     # out_col_name = "qiskit"
     out_col_name = method
-    num_workers = 6
+    num_workers = 4
     reduce_controls = True
     check_fidelity = True
     remove_leading_cx = True
@@ -157,5 +187,14 @@ def bruteforce_orders():
 if __name__ == "__main__":
     # generate_states()
     # merge_state_files()
-    run_prepare_state()
+    all_methods = list(METHODS.keys())
+    # run_prepare_state('topdown')
+    for method in all_methods:
+        print(f"Starting method: {method}")
+        try:
+            run_prepare_state(method)
+        except Exception as e:
+            print(f"\nFailed to run method: {method}")
+            print("The following Exception was the reason:")
+            print(e)
     # bruteforce_orders()
