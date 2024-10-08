@@ -119,8 +119,8 @@ def run_prepare_state(method):
     path_finder = PathFinderSHP()
     # path_finder = PathFinderMST()
     # num_qubits_all = np.array([5])
-    num_qubits_all = np.array(list(range(3, 4)))
-    num_amplitudes_all = 2**(num_qubits_all-1) # possible values are [num_qubits_all, num_qubits_all**2, 2**(num_qubits_all-1)]
+    num_qubits_all = np.array(list(range(5, 12)))
+    num_amplitudes_all = num_qubits_all # possible values are [num_qubits_all, num_qubits_all**2, 2**(num_qubits_all-1)]
     # out_col_name = "qiskit"
     out_col_name = method
     num_workers = 4
