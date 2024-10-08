@@ -119,13 +119,13 @@ def run_prepare_state(method):
     path_finder = PathFinderSHP()
     # path_finder = PathFinderMST()
     # num_qubits_all = np.array([5])
-    num_qubits_all = np.array(list(range(2, 5)))
+    num_qubits_all = np.array(list(range(5, 10)))
     num_amplitudes_all = num_qubits_all # possible values are [num_qubits_all, num_qubits_all**2, 2**(num_qubits_all-1)]
     # out_col_name = "qiskit"
     out_col_name = method
     num_workers = 6
     reduce_controls = True
-    check_fidelity = True
+    check_fidelity = False
     remove_leading_cx = True
     add_barriers = False
     optimization_level = 3
@@ -189,7 +189,7 @@ if __name__ == "__main__":
     # merge_state_files()
     all_methods = list(METHODS.keys())
     # run_prepare_state('topdown')
-    for method in all_methods[4:]:  # Just trying dcsp on its own since topdown took so long
+    for method in all_methods[2:]:  # Just trying dcsp on its own since topdown took so long
         print(f"Starting method: {method}")
         try:
             run_prepare_state(method)
