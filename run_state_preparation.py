@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 from qiskit import transpile, QuantumCircuit
 from qiskit.quantum_info import random_statevector, Statevector
+from qiskit.exceptions import QiskitError
 from tqdm import tqdm
 
 from src.quantum_walks import PathFinder, PathFinderLinear, PathFinderSHP, PathFinderMST, PathFinderRandom, PathFinderGrayCode
@@ -50,17 +51,29 @@ def prepare_state(target_state: dict[str, complex], method: str, path_finder: Pa
     elif method in METHODS:
         num_qubits = len(next(iter(target_state.keys())))
         initializer = METHODS.get(method)
-        if method in REQUIRES_SV:
-            state_vec = [0]*2**num_qubits
-            for k, v in target_state.items():
-                state_vec[int(k[::-1], 2)] = v  # Fidelity check fails if the bitstring is not reversed
-            circuit = initializer(state_vec).definition
-        else:
-            if method == "merge":  # For some reason merge does not need reversed bit strings, but pivot does
-                circuit = initializer(target_state).definition
+        try:
+            if method in REQUIRES_SV:
+                state_vec = [0]*2**num_qubits
+                for k, v in target_state.items():
+                    state_vec[int(k[::-1], 2)] = v  # Fidelity check fails if the bitstring is not reversed
+                try:
+                    circuit = initializer(state_vec).definition
+                except QiskitError as e:
+                    print(e)
+                    return np.nan
             else:
-                reversed_target_state = {k[::-1]: v for k, v in target_state.items()}
-                circuit = initializer(reversed_target_state).definition
+                if method == "merge":  # For some reason merge does not need reversed bit strings, but pivot does
+                    circuit = initializer(target_state).definition
+                else:
+                    reversed_target_state = {k[::-1]: v for k, v in target_state.items()}
+                    try:
+                        circuit = initializer(reversed_target_state).definition
+                    except QiskitError as e:
+                        print(e)
+                        return np.nan
+        except Exception as e:
+            print(e)
+            return np.nan
     else:
         raise Exception("Unknown method")
     circuit_transpiled = transpile(circuit, basis_gates=basis_gates, optimization_level=optimization_level)
@@ -119,8 +132,8 @@ def run_prepare_state(method):
     path_finder = PathFinderSHP()
     # path_finder = PathFinderMST()
     # num_qubits_all = np.array([5])
-    num_qubits_all = np.array(list(range(5, 10)))
-    num_amplitudes_all = num_qubits_all # possible values are [num_qubits_all, num_qubits_all**2, 2**(num_qubits_all-1)]
+    num_qubits_all = np.array(list(range(10, 11)))
+    num_amplitudes_all = num_qubits_all**2 # possible values are [num_qubits_all, num_qubits_all**2, 2**(num_qubits_all-1)]
     # out_col_name = "qiskit"
     out_col_name = method
     num_workers = 6
@@ -143,11 +156,18 @@ def run_prepare_state(method):
         results = []
         if num_workers == 1:
             for result in tqdm(map(process_func, state_list), total=len(state_list), smoothing=0, ascii=' █'):
-                results.append(result)
+                try:
+                    results.append(result)
+                except QiskitError:
+                    results.append(np.nan)
         else:
             with Pool(num_workers) as pool:
                 for result in tqdm(pool.imap(process_func, state_list), total=len(state_list), smoothing=0, ascii=' █'):
-                    results.append(result)
+                    try:
+                        results.append(result)
+                    except QiskitError as e:
+                        print(e)
+                        results.append(np.nan)
 
         cx_counts_file_path = os.path.join(data_folder, "cx_counts.csv")
         df = pd.read_csv(cx_counts_file_path) if os.path.isfile(cx_counts_file_path) else pd.DataFrame()
@@ -189,7 +209,7 @@ if __name__ == "__main__":
     # merge_state_files()
     all_methods = list(METHODS.keys())
     # run_prepare_state('topdown')
-    for method in all_methods[2:]:  # Just trying dcsp on its own since topdown took so long
+    for method in all_methods:  # Just trying dcsp on its own since topdown took so long
         print(f"Starting method: {method}")
         try:
             run_prepare_state(method)
