@@ -18,8 +18,8 @@ from qiskit.circuit.library import UGate, UnitaryGate
 from qiskit.circuit.library import RZGate, RXGate, PhaseGate
 
 from src.quantum_walks import (PathFinder, PathFinderLinear, PathFinderSHP, PathFinderMST, 
-    PathFinderRandom, PathFinderGrayCode, GleinigPathFinder, GleinigWalk,
-    PathFinderFromPairs, GleinigPathFinderPframes, PathFinderMHSNonlinear,
+    PathFinderRandom, PathFinderGrayCode,  
+    PathFinderFromPairs, PathFinderMHSNonlinear,
     PathFinderMHSLinear, hamming_dist
     )
 from src.validation import execute_circuit, get_state_vector, get_fidelity
@@ -132,8 +132,8 @@ def run_prepare_state():
     # file_idxs=[4,5]
     num_amplitudes_all=num_qubits_all
     # path_finder=PathFinderLinear()
-    # path_finder=PathFinderMHSLinear()
-    path_finder=PathFinderMHSNonlinear()
+    path_finder=PathFinderMHSLinear()
+    # path_finder=PathFinderMHSNonlinear()
     # path_finder=PathFinderSHP()
     # path_finder=PathFinderMST()
     # path_finder=PathFinderRandom()
@@ -692,88 +692,88 @@ def prepare_state_greedy_end(target_state: dict[str, complex], num_amplitudes: i
 
     return cx_count
 
-def prepare_state_greedy_pframe(target_state: dict[str, complex], num_amplitudes: int) -> int:
-    '''Uses a greedy method. Add the cheapest basis state at a time. 
-    Doesn't update the Pauli frame (don't use without the proper path converter.).'''
-    method = "walks"
-    reduce_controls = True
-    check_fidelity = True
-    remove_leading_cx = True
-    add_barriers = True
-    optimization_level = 0
-    basis_gates = ["rx", "ry", "rz", "h", "cx"]
-    # print("num amps: ", num_amplitudes)
-    np.random.seed(0)
-    start_idx=np.random.randint(0, num_amplitudes-1)
-    basis_sts=list(target_state.keys())
-    basis_sts_original=deepcopy(basis_sts)
-    # start_idx=basis_sts.index(sorted(basis_sts, key=lambda x: int(x, 2))[0]) #get the smallest Hamming weight element.
-    # start_idx=basis_sts.index(GleinigWalk.select_first_string(target_state))
-    path_original=[basis_sts.pop(start_idx)]
-    path=[basis_sts_original.pop(start_idx)]
-    # path_finder = PathFinderLinear()
-    while len(basis_sts)>1: # the last part of the path should prepare the full state.
-        partial_cx=None
-        next_basis_idx=None
-        next_interaction_ind=None
-        next_diff_inds=None
-        iter_basis_sts=enumerate(deepcopy(basis_sts))
-        for idx, _ in iter_basis_sts:
-            z1=basis_sts[idx]
-            # coeff=1/np.sqrt(len(path)+1)
-            # temp_target={k:coeff for k in path+[z1]} #construct fake state (normalized of the partial path).
-            # print(temp_target)
+# def prepare_state_greedy_pframe(target_state: dict[str, complex], num_amplitudes: int) -> int:
+#     '''Uses a greedy method. Add the cheapest basis state at a time. 
+#     Doesn't update the Pauli frame (don't use without the proper path converter.).'''
+#     method = "walks"
+#     reduce_controls = True
+#     check_fidelity = True
+#     remove_leading_cx = True
+#     add_barriers = True
+#     optimization_level = 0
+#     basis_gates = ["rx", "ry", "rz", "h", "cx"]
+#     # print("num amps: ", num_amplitudes)
+#     np.random.seed(0)
+#     start_idx=np.random.randint(0, num_amplitudes-1)
+#     basis_sts=list(target_state.keys())
+#     basis_sts_original=deepcopy(basis_sts)
+#     # start_idx=basis_sts.index(sorted(basis_sts, key=lambda x: int(x, 2))[0]) #get the smallest Hamming weight element.
+#     # start_idx=basis_sts.index(GleinigWalk.select_first_string(target_state))
+#     path_original=[basis_sts.pop(start_idx)]
+#     path=[basis_sts_original.pop(start_idx)]
+#     # path_finder = PathFinderLinear()
+#     while len(basis_sts)>1: # the last part of the path should prepare the full state.
+#         partial_cx=None
+#         next_basis_idx=None
+#         next_interaction_ind=None
+#         next_diff_inds=None
+#         iter_basis_sts=enumerate(deepcopy(basis_sts))
+#         for idx, _ in iter_basis_sts:
+#             z1=basis_sts[idx]
+#             # coeff=1/np.sqrt(len(path)+1)
+#             # temp_target={k:coeff for k in path+[z1]} #construct fake state (normalized of the partial path).
+#             # print(temp_target)
 
-            # temp_cx_count = prepare_state(temp_target, method, path_finder, basis_gates, optimization_level, False, 
-                                    # reduce_controls=reduce_controls, remove_leading_cx=remove_leading_cx,
-                                    # add_barriers=add_barriers) #cost of fake state.
-            #cx cost of fake state. cx conjugation + num_controls.
-            # convert each bit string to list of zeros and ones.
-            visited=[[int(char) for char in elem] for elem in path]
-            origin = [int(char) for char in path[-1]]
-            destination = [int(char) for char in z1]
-            diff_inds = np.where(np.array(destination) != np.array(origin))[0]
-            interaction_ind = diff_inds[0]
-            visited_transformed=deepcopy(visited)
-            for ind in diff_inds[1::]:
-                PathConverter.update_visited(visited_transformed, interaction_ind, ind)
-            origin_ind=visited.index(origin)
-            temp_cx_count=len(diff_inds[1::])
-            temp_cx_count+=40*len(PathConverter.find_min_control_set(visited_transformed, origin_ind, interaction_ind))
+#             # temp_cx_count = prepare_state(temp_target, method, path_finder, basis_gates, optimization_level, False, 
+#                                     # reduce_controls=reduce_controls, remove_leading_cx=remove_leading_cx,
+#                                     # add_barriers=add_barriers) #cost of fake state.
+#             #cx cost of fake state. cx conjugation + num_controls.
+#             # convert each bit string to list of zeros and ones.
+#             visited=[[int(char) for char in elem] for elem in path]
+#             origin = [int(char) for char in path[-1]]
+#             destination = [int(char) for char in z1]
+#             diff_inds = np.where(np.array(destination) != np.array(origin))[0]
+#             interaction_ind = diff_inds[0]
+#             visited_transformed=deepcopy(visited)
+#             for ind in diff_inds[1::]:
+#                 PathConverter.update_visited(visited_transformed, interaction_ind, ind)
+#             origin_ind=visited.index(origin)
+#             temp_cx_count=len(diff_inds[1::])
+#             temp_cx_count+=40*len(PathConverter.find_min_control_set(visited_transformed, origin_ind, interaction_ind))
             
-            if not partial_cx or temp_cx_count<partial_cx:
-                partial_cx=temp_cx_count
-                next_basis_idx=idx
-                next_interaction_ind=interaction_ind
-                next_diff_inds=diff_inds
+#             if not partial_cx or temp_cx_count<partial_cx:
+#                 partial_cx=temp_cx_count
+#                 next_basis_idx=idx
+#                 next_interaction_ind=interaction_ind
+#                 next_diff_inds=diff_inds
 
-        path.append(basis_sts.pop(next_basis_idx))
-        #update basis
-        # print("basis before: ", basis_sts)
-        # print(next_diff_inds)
-        temp_basis_sts=[[int(char) for char in elem] for elem in basis_sts]
-        temp_path=[[int(char) for char in elem] for elem in path]
-        for ind in next_diff_inds[1::]:
-            PathConverter.update_visited(temp_basis_sts, next_interaction_ind, ind)
-            PathConverter.update_visited(temp_path, next_interaction_ind, ind)
-        temp_basis_sts=[[str(char) for char in elem] for elem in temp_basis_sts]
-        temp_path=[[str(char) for char in elem] for elem in temp_path]
-        basis_sts=["".join(elem) for elem in temp_basis_sts]
-        path=temp_path
-        # print("basis after: ", basis_sts)
-        path_original.append(basis_sts_original.pop(next_basis_idx))
-    path=path+basis_sts # attach the last remaining basis element.
-    path_original=path_original+basis_sts_original
-    # convert path list of indices. prepare actual state.
-    basis_sts=list(target_state.keys())
-    perm=[basis_sts.index(z1) for z1 in path_original]
-    # print(perm)
-    path_finder = PathFinderLinear(perm)
-    cx_count = prepare_state(target_state, method, path_finder, basis_gates, optimization_level, check_fidelity, 
-                                    reduce_controls=reduce_controls, remove_leading_cx=remove_leading_cx,
-                                    add_barriers=add_barriers)
+#         path.append(basis_sts.pop(next_basis_idx))
+#         #update basis
+#         # print("basis before: ", basis_sts)
+#         # print(next_diff_inds)
+#         temp_basis_sts=[[int(char) for char in elem] for elem in basis_sts]
+#         temp_path=[[int(char) for char in elem] for elem in path]
+#         for ind in next_diff_inds[1::]:
+#             PathConverter.update_visited(temp_basis_sts, next_interaction_ind, ind)
+#             PathConverter.update_visited(temp_path, next_interaction_ind, ind)
+#         temp_basis_sts=[[str(char) for char in elem] for elem in temp_basis_sts]
+#         temp_path=[[str(char) for char in elem] for elem in temp_path]
+#         basis_sts=["".join(elem) for elem in temp_basis_sts]
+#         path=temp_path
+#         # print("basis after: ", basis_sts)
+#         path_original.append(basis_sts_original.pop(next_basis_idx))
+#     path=path+basis_sts # attach the last remaining basis element.
+#     path_original=path_original+basis_sts_original
+#     # convert path list of indices. prepare actual state.
+#     basis_sts=list(target_state.keys())
+#     perm=[basis_sts.index(z1) for z1 in path_original]
+#     # print(perm)
+#     path_finder = PathFinderLinear(perm)
+#     cx_count = prepare_state(target_state, method, path_finder, basis_gates, optimization_level, check_fidelity, 
+#                                     reduce_controls=reduce_controls, remove_leading_cx=remove_leading_cx,
+#                                     add_barriers=add_barriers)
 
-    return cx_count
+#     return cx_count
 
 def combined_method(m1, m2, out_col_name, num_qubits_all, num_amplitudes_all):
     '''For greedy combined.'''
@@ -833,54 +833,3 @@ if __name__ == "__main__":
 
     # run_greedy_order_state(num_workers=1)
     # run_bruteforce_order_state(num_workers=6)
-
-
-    # num_qubits=10
-    # circ1=QuantumCircuit(num_qubits)
-    # rz_angle1=np.pi/3
-    # rx_angle=np.pi/5
-    # rz_angle2=np.pi/4
-    # interaction_ind=0
-    # control_indices=list(range(num_qubits))[1::]
-    # bool_check=False
-    # # gate_definition=np.array([[np.exp(-1j*rz_angle1/2)*np.cos(rx_angle/2),-1j*np.exp(-1j*rz_angle1/2)*np.sin(rx_angle/2)],
-    # #                                         [-1j*np.exp(1j*rz_angle1/2)*np.sin(rx_angle/2), np.exp(1j*rz_angle1/2)*np.cos(rx_angle/2)]])
-
-    # if bool_check==0: #end of circuit    
-    #     gate_definition=np.array([[np.exp(1j*rz_angle1)*np.cos(rx_angle), -1j*np.exp(1j*(rz_angle1+rz_angle2))*np.sin(rx_angle)],
-    #                                         [-1j*np.sin(rx_angle), np.exp(1j*rz_angle2)*np.cos(rx_angle)]])
-    # else:
-    #     gate_definition=np.array([[np.exp(1j*rz_angle2)*np.cos(rx_angle), -1j*np.sin(rx_angle)],
-    #                         [-1j*np.exp(1j*(rz_angle1+rz_angle2))*np.sin(rx_angle), np.exp(1j*rz_angle1)*np.cos(rx_angle)]])
-    # Ldmcu.ldmcu(circ1, gate_definition, control_indices, interaction_ind)
-    # Ldmcu.ldmcu(circ1, gate_definition, control_indices[1::], interaction_ind)
-    # # gate_definition=UnitaryGate(gate_definition).control(len(control_indices))
-    # # circ1.append(gate_definition, control_indices+ [interaction_ind])
-    # # Ldmcu.ldmcu(circ1, gate_definition, control_indices, interaction_ind)
-
-
-    # # rz_gate = RZGate(rz_angle1)
-    # # rz_gate = rz_gate.control(len(control_indices))
-    # # circ1.append(rz_gate, control_indices + [interaction_ind])
-
-    # # # print("rx angle ", rx_angle)
-    # # rx_gate = RXGate(rx_angle)
-    # # rx_gate = rx_gate.control(len(control_indices))
-    # # circ1.append(rx_gate, control_indices + [interaction_ind])
-
-    # circ2=QuantumCircuit(num_qubits)
-    # theta=2*np.pi/5
-    # phi=np.pi/3
-    # lamb=np.pi/4
-    # gate_definition = RXGate(theta).to_matrix() #UGate(theta, phi, lamb, label="U").to_matrix()
-    # Ldmcu.ldmcu(circ2, gate_definition, control_indices[::], interaction_ind)
-    # Ldmcu.ldmcu(circ2, gate_definition, control_indices[1::], interaction_ind)
-    # print(circ1)
-    # print(circ2)
-    # basis_gates = ["rx", "ry", "rz", "h", "cx"]
-    # circ1=transpile(circ1.inverse(), basis_gates=basis_gates, optimization_level=3)
-    # circ2=transpile(circ2, basis_gates=basis_gates, optimization_level=3)
-    # # print(circ1)
-    # # print(circ2)
-    # print(circ1.count_ops())
-    # print(circ2.count_ops())
