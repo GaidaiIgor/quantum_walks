@@ -436,14 +436,10 @@ class PathFinderMHSNonlinear(PathFinder):
         basis_mutable=deepcopy(states)
         # indices=list(range(len(basis_original[0])))
         for _ in range(len(states)-1):
-            # print("ordered states easiest firs ", self.order_basis_states_mhs(basis_mutable))
-            z1_updated=self.order_basis_states_mhs(basis_mutable)[0]
+            z1_updated, z2_updated, interaction_ind=self.order_states_mhs_z1(basis_mutable)
             z1_idx=basis_mutable.index(z1_updated)
             z1_original=basis_original[z1_idx]
-            # remaining_basis=deepcopy(basis_mutable)
-            # remaining_basis.remove(z1_updated)
 
-            z2_updated, interaction_ind=self._get_partner_node(z1_updated, basis_mutable)
             z2_idx=basis_mutable.index(z2_updated)
             z2_original=basis_original[z2_idx]
             path.append([z1_original, z2_original, interaction_ind])
@@ -458,115 +454,118 @@ class PathFinderMHSNonlinear(PathFinder):
             graph.add_edge(pair[0], pair[1])
         graph.graph["start"] = path[0][0]
         return graph, path
-    
-    @staticmethod
-    def _construct_z2_search(intercation_ind, remaining_basis, z1_diffs, z1_mhs):
-        '''Filters remaing_basis such that z1_diffs[i] intersects z1_mhs[i] only at interaction_ind.'''
-        new_reamining_basis=[remaining_basis[idx] for idx, elem in enumerate(z1_diffs) if set(elem).intersection(set(z1_mhs))==set([intercation_ind])]
-        return new_reamining_basis
-
 
     def update_nodes(self, z1, z2, visited, interaction_ind):
         '''Updates visited.'''
         z1=[int(char) for char in z1]
         z2=[int(char) for char in z2]
         diff_inds = list(np.where(np.array(z1) != np.array(z2))[0])
-        # print(diff_inds)
         diff_inds.remove(interaction_ind)
-        # print("interaction for updating ", interaction_ind)
-        # print("before updating visited ", visited)
-        # print(f"z1 z2 node {z1}, {z2}")
-        # print("diff inds ", diff_inds)
         visited=[[int(char) for char in st] for st in visited]
         for target in diff_inds: #update the visited nodes
             update_visited(visited, interaction_ind, target)
-        # print("right after ", visited)
         visited=["".join(list(map(str,elem))) for elem in visited]
-        # print("after updating visited ", visited)
 
         return visited
-
-    # @staticmethod
-    # def order_by_hamming_dist(origin, remaining_basis):
-    #     '''Orders the remaining basis by Hamming distance from origin.'''
-    #     # print("origin ", origin)
-    #     # print("remaining basis ", remaining_basis)
-    #     return sorted(remaining_basis, key=lambda elem: (hamming_dist(origin, elem),))
-    #                 # PathFinderMHSLinear.get_mhs_score(elem, remaining_basis)))
     
     @staticmethod
-    def get_mhs_score(elem, remaining_basis):
-        return len(PathFinderMHSLinear.get_mhs(elem, remaining_basis))
+    def _get_diffs(z1, z2):
+        '''Gets the different indices between bit strings z1 and z2.'''
+        indices=range(len(z1))
+        return [i for i in indices if z1[i] != z2[i]]
     
     @staticmethod
-    def get_mhs(elem, remaining_basis):
-        # print("remaining basis ", remaining_basis)
-        # print("origin ", elem)
-        diffs= [[ind for ind in range(len(elem)) if elem[ind] != z1[ind]] for z1 in remaining_basis]
-        # print(f"diffs {diffs}")
+    def _get_all_diffs(elem1, remaining_basis):
+        '''Returns the list of diffs with elem1.'''
+        return [PathFinderMHSNonlinear._get_diffs(elem1, elem2) for elem2 in remaining_basis]
+    
+    @staticmethod
+    def _count_elements(basis):
+        '''counts the total number of elements.'''
+        return sum([len(block) for block in basis])
+    
+    @staticmethod
+    def _create_remaining_basis(elem, basis):
+        '''Returns the list basis without elem in it.'''
+        return [elem2 for elem2 in basis if elem2!=elem]
+    
+    def _get_z2_mhs_score(self, elem, z2_search):
+        '''returns a tuple of z2 and the number of controls required to differentiate z2 from the rest of the elements.'''
+        if len(z2_search)>1:    
+            all_z2_mhs_scores=[self.get_mhs_score(self._get_all_diffs(z2, self._create_remaining_basis(z2, z2_search))) for z2 in z2_search]
+            z2_search_z2_mhs_scores=sorted(list(zip(z2_search, all_z2_mhs_scores)), key=lambda z2:
+                                (z2[1], hamming_dist(elem, z2[0])))
+            z2_search, all_z2_mhs_scores=zip(*z2_search_z2_mhs_scores)
+            z2=z2_search[0]
+            z2_score=all_z2_mhs_scores[0]
+        else:
+            z2=z2_search[0]
+            z2_score=0
+        return (z2, z2_score)
+    
+    def order_states_mhs_z1(self, basis):
+        '''Returns z1, z2, target.'''
+        all_diffs_z1=[[self._get_diffs(z1, z2) for z2 in self._create_remaining_basis(z1, basis)] for z1 in basis]
+        all_mhs_scores_z1=[self.get_mhs_score(elem) for elem in all_diffs_z1]
+        # gets a list of the tuples. First element in the tuple is a list of the possible z2s. The second element is the corresponding target.
+        all_z2_search_spaces, targets=zip(*[self._get_z2_search(elem, basis) for elem in basis])
+        all_best_z2s, z2_scores=zip(*[self._get_z2_mhs_score(elem, z2_search) for elem, z2_search in zip(basis, all_z2_search_spaces)])
+        basis_all_diffs1= sorted(zip(basis, all_diffs_z1, all_mhs_scores_z1, z2_scores, all_best_z2s, targets), key=lambda elem:
+                                (elem[2]+elem[3],
+                -1*self._count_elements(elem[1])))
+        all_results=list(zip(*basis_all_diffs1))
+        z1=all_results[0][0]
+        z2=all_results[4][0]
+        target=all_results[5][0]
+        return z1, z2, target
+    
+    def order_states_mhs_z2(self, basis, z1):
+        '''Returns z2 and target.'''
+        z2_search=self._get_z2_search(z1, basis)[0]
+        #  print("new z2_search ", z2_search)
+        return sorted(z2_search, key=lambda z2:
+                (self.get_mhs_score([self._get_diffs(z2, elem) for elem in self._create_remaining_basis(z2, z2_search)]),
+            hamming_dist(z2, z1)))
+    
+    def _get_partner_node(self, z1_updated, basis_mutable):
+        '''Gets the partner node for z1_updated.'''
+        z2_search_params=self._get_z2_search(z1_updated, basis_mutable)
+        interaction_ind=z2_search_params[1]
+        z2_updated=self.order_states_mhs_z2(basis_mutable, z1_updated)[0]
+        # z2_updated=self.order_basis_states_mhs(basis_mutable, z1_updated)[0]
+        return z2_updated, interaction_ind
+    
+    @staticmethod
+    def get_mhs_score(diffs):
+        '''Gets the size of the mhs.'''
+        return len(PathFinderMHSNonlinear.get_mhs(diffs))
+    
+    @staticmethod
+    def get_mhs(diffs):
+        '''Gets the mhs.'''
         hitman = Hitman()
         for inds_set in diffs:
             hitman.hit(inds_set)
-        # print(hitman.get())
         return hitman.get()
     
-    # @staticmethod
-    # def get_all_mhs_scores(basis:list):
-    #     return [PathFinderMHSLinear.get_mhs_score(elem, [elem2 for elem2 in basis if elem2!=elem]) for elem in basis]
-
-    def get_z2_search(self, elem, basis):
+    def _get_z2_search(self, elem, basis):
         '''Returns the z2 search space and target qubit.
         :param elem: z1
         :param basis: all the basis states including elem.
         :return: z2 and interaction index '''
-        indices=range(len(basis[0]))
-        remaining_basis1=[elem2 for elem2 in basis if elem2!=elem]
-        mhs1=self.get_mhs(elem, remaining_basis1)
-        diffs1=[[ind for ind in indices if elem[ind] != z2[ind]] for z2 in remaining_basis1]
-        mhs_freq_sorted1=sorted(mhs1, key=lambda idx: sum([1 for block in diffs1 for elem in block if elem==idx]))
+        remaining_basis1=self._create_remaining_basis(elem, basis)
+        diffs1=[PathFinderMHSNonlinear._get_diffs(elem, z2) for z2 in remaining_basis1]
+        mhs1=self.get_mhs(diffs1)
+        mhs_freq_sorted1=sorted(mhs1, key=lambda idx: sum([1 for block in diffs1 if idx in block]))
         interaction_ind=mhs_freq_sorted1[0]
-        z2_search=self._construct_z2_search(interaction_ind, remaining_basis1, diffs1, mhs1)
+        z2_search=self._get_single_hit_z2s(interaction_ind, remaining_basis1, diffs1, mhs1)
         return [z2_search, interaction_ind]
-
-    @staticmethod
-    def order_basis_states_mhs(basis:list, z1=None):
-        '''Orders basis by MHS score of each elem. It includes the cost of MHS of z1 and z2 and takes into
-        account the target qubit.'''
-        def _count_elements(basis):
-            return sum([len(block) for block in basis])
-        def _create_remaining_basis(elem, basis):
-            return [elem2 for elem2 in basis if elem2!=elem]
-        def _get_z2_mhs_score(elem, z2_search):
-            '''returns the number of controls required to differentiate z2.'''
-            if len(z2_search)>1:
-                z2_search=sorted(z2_search, key=lambda z2:
-                                    (PathFinderMHSLinear.get_mhs_score(z2, _create_remaining_basis(z2, z2_search)),
-                                    hamming_dist(elem, z2)))
-                z2=z2_search[0]
-                z2_score=PathFinderMHSLinear.get_mhs_score(z2, _create_remaining_basis(z2, z2_search))
-            else:
-                z2_score=0
-            return z2_score
-        
-        indices=range(len(basis[0]))
-        if z1 is not None:
-             z2_search=PathFinderMHSLinear().get_z2_search(z1, basis)[0]
-            #  print("new z2_search ", z2_search)
-             return sorted(z2_search, key=lambda z2:
-                                  (PathFinderMHSLinear.get_mhs_score(z2, _create_remaining_basis(z2, z2_search)),
-                                hamming_dist(z2, z1)))
-        else:
-            return sorted(basis, key=lambda elem:
-                                    (PathFinderMHSLinear.get_mhs_score(elem, _create_remaining_basis(elem, basis))
-                                     +_get_z2_mhs_score(elem, PathFinderMHSLinear().get_z2_search(elem, basis)[0]),
-                    -1*_count_elements([[ind for ind in indices if elem[ind] != z1[ind]] for z1 in _create_remaining_basis(elem, basis)])))
     
-    def _get_partner_node(self, z1_updated, basis_mutable):
-        '''Gets the partner node for z1_updated.'''
-        z2_search_params=self.get_z2_search(z1_updated, basis_mutable)
-        interaction_ind=z2_search_params[1]
-        z2_updated=self.order_basis_states_mhs(basis_mutable, z1_updated)[0]
-        return z2_updated, interaction_ind
+    @staticmethod
+    def _get_single_hit_z2s(intercation_ind, remaining_basis, z1_diffs, z1_mhs):
+        '''Filters remaing_basis such that z1_diffs[i] intersects z1_mhs[i] only at interaction_ind.'''
+        new_reamining_basis=[remaining_basis[idx] for idx, elem in enumerate(z1_diffs) if set(elem).intersection(set(z1_mhs))==set([intercation_ind])]
+        return new_reamining_basis
 
 
 class PathFinderMHSLinear(PathFinderMHSNonlinear):
@@ -582,17 +581,9 @@ class PathFinderMHSLinear(PathFinderMHSNonlinear):
         for _ in range(len(states)-1):
             # print("ordered states easiest firs ", self.order_basis_states_mhs(basis_mutable))
             if not path_mutable:
-                # z2_updated=self.order_basis_states_mhs(basis_mutable)[0]
-                # z2_idx=basis_mutable.index(z2_updated)
-                # z2_original=basis_original[z2_idx]
-                # z1_updated, interaction_ind=self._get_partner_node(z2_updated, basis_mutable)
-                # z1_idx=basis_mutable.index(z1_updated)
-                # z1_original=basis_original[z1_idx]
-
-                z1_updated=self.order_basis_states_mhs(basis_mutable)[0]
+                z1_updated, z2_updated, interaction_ind=self.order_states_mhs_z1(basis_mutable)
                 z1_idx=basis_mutable.index(z1_updated)
                 z1_original=basis_original[z1_idx]
-                z2_updated, interaction_ind=self._get_partner_node(z1_updated, basis_mutable)
                 z2_idx=basis_mutable.index(z2_updated)
                 z2_original=basis_original[z2_idx]
 
@@ -623,10 +614,6 @@ def hamming_dist(z1, z2):
     return sum([b1 != b2 for b1, b2 in zip(z1,z2)])
     
 def get_hamming_weight(bits):
-    # tot=0
-    # for elem in bits:
-    #     if elem=="1":
-    #         tot+= 1
     return bits.count("1")
 
 def update_visited(visited: list[list[int]], control: int, target: int):

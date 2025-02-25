@@ -127,13 +127,13 @@ def merge_state_files():
 
 def run_prepare_state():
     # print("min cx ", prepare_state_brute(init_state, len(init_state.keys())))
-    num_qubits_all=np.array(list(range(5,12)))
+    num_qubits_all=np.array(list(range(5, 7)))
     file_idxs=None
     # file_idxs=[4,5]
-    num_amplitudes_all=num_qubits_all
+    num_amplitudes_all=num_qubits_all**2
     # path_finder=PathFinderLinear()
-    path_finder=PathFinderMHSLinear()
-    # path_finder=PathFinderMHSNonlinear()
+    # path_finder=PathFinderMHSLinear()
+    path_finder=PathFinderMHSNonlinear()
     # path_finder=PathFinderSHP()
     # path_finder=PathFinderMST()
     # path_finder=PathFinderRandom()

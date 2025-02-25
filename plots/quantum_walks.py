@@ -208,21 +208,21 @@ def averages_mhs_merging_comparison():
 
 if __name__ == "__main__":
     # plot_control_reduction_effect()
-    plot_walks_comparison()
+    # plot_walks_comparison()
     # plot_mhs_soa_comparison()
     # plot_mhs_soa_comparison2()
     # plot_greedy_gleinig_comparison()
 
-    plt.show()
+    # plt.show()
 
     num_qubits=np.array((range(5,12)))
-    num_amplitudes=num_qubits
-    # method="mhs_linear"
+    num_amplitudes=num_qubits**2
+    method="mhs_linear"
     # method="mhs_nonlinear"
     # method="merging_states"
     # method="shp_reduced"
-    method="greedy_insertion_mhs_combined"
-    method="greedy_insertion_ordered_combined"
+    # method="greedy_insertion_mhs_combined"
+    # method="greedy_insertion_ordered_combined"
 
     print(_get_avg(method, num_qubits, num_amplitudes))
     # print(averages_mhs_merging_comparison())
