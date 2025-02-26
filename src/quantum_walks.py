@@ -549,6 +549,7 @@ class PathFinderMHSNonlinear(PathFinder):
         diffs1=[PathFinderMHSNonlinear._get_diffs(elem, z2) for z2 in remaining_basis1]
         # Search for the target qubit.
         mhs1=self.get_mhs(diffs1)
+        # todo: the frequency should be counted over blocks that intersect the mhs at a single element.
         mhs_freq_sorted1=sorted(mhs1, key=lambda idx: sum([1 for block in diffs1 if idx in block]))
         interaction_ind=mhs_freq_sorted1[0]
         z2_search=self._get_single_hit_z2s(interaction_ind, remaining_basis1, diffs1, mhs1)

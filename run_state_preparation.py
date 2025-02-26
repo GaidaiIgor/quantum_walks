@@ -130,7 +130,7 @@ def run_prepare_state():
     num_qubits_all=np.array(list(range(5, 7)))
     file_idxs=None
     # file_idxs=[4,5]
-    num_amplitudes_all=num_qubits_all**2
+    num_amplitudes_all=num_qubits_all
     # path_finder=PathFinderLinear()
     # path_finder=PathFinderMHSLinear()
     path_finder=PathFinderMHSNonlinear()
