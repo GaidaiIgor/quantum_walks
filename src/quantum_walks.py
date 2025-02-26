@@ -426,7 +426,7 @@ class PathFinderMST(PathFinder):
 
 
 class PathFinderMHSNonlinear(PathFinder):
-    """The Minimum Hitting Set method on the basis states. """
+    """The Minimum Hitting Set method on the basis states. The reutrned set of walks may be nonlinear."""
     def build_travel_graph(self, states: list[str]) -> Graph:
         # print(states)
         # print(ordered_states)
@@ -434,7 +434,6 @@ class PathFinderMHSNonlinear(PathFinder):
         path=[]
         basis_original=deepcopy(states)
         basis_mutable=deepcopy(states)
-        # indices=list(range(len(basis_original[0])))
         for _ in range(len(states)-1):
             z1_updated, z2_updated, interaction_ind=self.order_states_mhs_z1(basis_mutable)
             z1_idx=basis_mutable.index(z1_updated)
@@ -489,20 +488,6 @@ class PathFinderMHSNonlinear(PathFinder):
         '''Returns the list basis without elem in it.'''
         return [elem2 for elem2 in basis if elem2!=elem]
     
-    def _get_z2_mhs_score(self, elem, z2_search):
-        '''returns a tuple of z2 and the number of controls required to differentiate z2 from the rest of the elements.'''
-        if len(z2_search)>1:    
-            all_z2_mhs_scores=[self.get_mhs_score(self._get_all_diffs(z2, self._create_remaining_basis(z2, z2_search))) for z2 in z2_search]
-            z2_search_z2_mhs_scores=sorted(list(zip(z2_search, all_z2_mhs_scores)), key=lambda z2:
-                                (z2[1], hamming_dist(elem, z2[0])))
-            z2_search, all_z2_mhs_scores=zip(*z2_search_z2_mhs_scores)
-            z2=z2_search[0]
-            z2_score=all_z2_mhs_scores[0]
-        else:
-            z2=z2_search[0]
-            z2_score=0
-        return (z2, z2_score)
-    
     def order_states_mhs_z1(self, basis):
         '''Returns z1, z2, target.'''
         all_diffs_z1=[[self._get_diffs(z1, z2) for z2 in self._create_remaining_basis(z1, basis)] for z1 in basis]
@@ -519,19 +504,26 @@ class PathFinderMHSNonlinear(PathFinder):
         target=all_results[5][0]
         return z1, z2, target
     
-    def order_states_mhs_z2(self, basis, z1):
-        '''Returns z2 and target.'''
-        z2_search=self._get_z2_search(z1, basis)[0]
-        #  print("new z2_search ", z2_search)
-        return sorted(z2_search, key=lambda z2:
-                (self.get_mhs_score([self._get_diffs(z2, elem) for elem in self._create_remaining_basis(z2, z2_search)]),
-            hamming_dist(z2, z1)))
+    def _get_z2_mhs_score(self, elem, z2_search):
+        '''returns a tuple of z2 and the number of controls required to differentiate z2 from the rest of the elements.'''
+        if len(z2_search)>1:    
+            all_z2_mhs_scores=[self.get_mhs_score(self._get_all_diffs(z2, self._create_remaining_basis(z2, z2_search))) for z2 in z2_search]
+            z2_search_z2_mhs_scores=sorted(list(zip(z2_search, all_z2_mhs_scores)), key=lambda x:
+                                (x[1],hamming_dist(elem, x[0])))
+            z2_search, all_z2_mhs_scores=zip(*z2_search_z2_mhs_scores)
+            z2=z2_search[0]
+            z2_score=all_z2_mhs_scores[0]
+        else:
+            z2=z2_search[0]
+            z2_score=0
+        return (z2, z2_score)
     
     def _get_partner_node(self, z1_updated, basis_mutable):
         '''Gets the partner node for z1_updated.'''
-        z2_search_params=self._get_z2_search(z1_updated, basis_mutable)
-        interaction_ind=z2_search_params[1]
-        z2_updated=self.order_states_mhs_z2(basis_mutable, z1_updated)[0]
+        z2_search_space, interaction_ind=self._get_z2_search(z1_updated, basis_mutable)
+        # interaction_ind=z2_search_params[1]
+        # z2_updated=self._order_states_mhs_z2(basis_mutable, z1_updated)[0]
+        z2_updated=self._get_z2_mhs_score(z1_updated, z2_search_space)[0]
         # z2_updated=self.order_basis_states_mhs(basis_mutable, z1_updated)[0]
         return z2_updated, interaction_ind
     
@@ -555,6 +547,7 @@ class PathFinderMHSNonlinear(PathFinder):
         :return: z2 and interaction index '''
         remaining_basis1=self._create_remaining_basis(elem, basis)
         diffs1=[PathFinderMHSNonlinear._get_diffs(elem, z2) for z2 in remaining_basis1]
+        # Search for the target qubit.
         mhs1=self.get_mhs(diffs1)
         mhs_freq_sorted1=sorted(mhs1, key=lambda idx: sum([1 for block in diffs1 if idx in block]))
         interaction_ind=mhs_freq_sorted1[0]
@@ -569,6 +562,7 @@ class PathFinderMHSNonlinear(PathFinder):
 
 
 class PathFinderMHSLinear(PathFinderMHSNonlinear):
+    '''Constructs a linear set of quantum walks.'''
     def build_travel_graph(self, states: list[str]) -> Graph:
         # print(states)
         # print(ordered_states)

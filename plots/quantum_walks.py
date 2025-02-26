@@ -216,7 +216,7 @@ if __name__ == "__main__":
     # plt.show()
 
     num_qubits=np.array((range(5,12)))
-    num_amplitudes=num_qubits**2
+    num_amplitudes=num_qubits
     method="mhs_linear"
     # method="mhs_nonlinear"
     # method="merging_states"
